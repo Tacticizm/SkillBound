@@ -1,0 +1,11 @@
+/game-project
+│
+├── index.html          # The entry point and Canvas element
+├── style.css           # Styling for the UI and Canvas
+│
+└── /js
+    ├── main.js         # The Game Loop and initialization
+    ├── input.js        # Keyboard/Mouse event listeners
+    ├── entities.js     # Character, NPC, and Monster classes
+    ├── world.js        # Map data, tile rendering, and collision
+    └── mechanics.js    # Skills, XP, and Combat logic

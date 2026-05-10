@@ -1,0 +1,84 @@
+/* Import a retro pixel font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+/* Reset default margins and set the background */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a1a2e; /* Dark, moody background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'VT323', monospace; /* Use the retro font */
+    color: white;
+}
+
+/* The main container holding the canvas and UI */
+#game-container {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    border: 4px solid #3a3a5e;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    background-color: #000; /* Fallback behind the canvas */
+    overflow: hidden;
+}
+
+/* The game screen */
+#gameCanvas {
+    display: block;
+    /* This keeps pixel art looking sharp instead of blurry */
+    image-rendering: pixelated; 
+}
+
+/* The UI layer sitting on top of the canvas */
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* Let clicks pass through the invisible parts of the UI layer to the canvas */
+    pointer-events: none; 
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+/* A classic retro health bar */
+#health-bar {
+    width: 150px;
+    height: 24px;
+    background-color: #333;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    position: relative;
+    box-shadow: inset 0 0 5px black;
+}
+
+/* The red part of the health bar (we can animate this width later via JS) */
+#health-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 80%; /* Example: 80% health */
+    background-color: #e63946;
+    border-right: 2px solid #222;
+}
+
+/* The XP/Skill tracker box */
+#skill-tracker {
+    background-color: rgba(20, 20, 30, 0.85);
+    border: 2px solid #a89f91;
+    padding: 5px 15px;
+    font-size: 24px;
+    border-radius: 4px;
+    text-shadow: 1px 1px 0px #000;
+}
