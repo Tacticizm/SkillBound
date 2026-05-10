@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Adventure RPG</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="health-bar"></div>
+            <div id="skill-tracker">XP: 0</div>
+        </div>
+    </div>
+
+    <!-- Scripts are loaded in order of dependency -->
+    <script src="js/input.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/mechanics.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
