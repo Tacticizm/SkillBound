@@ -11,23 +11,37 @@ GRAY  = (160,160,180)
 
 class Enemy:
     TEMPLATES = {
-        "Goblin":    {"hp":18,"atk":4, "def":2, "xp":25, "gold":(1,5),  "color":(60,160,60),  "drop":[("Goblin Bones",1,.9),("Logs",1,.3),("Gold Coin",3,.5)]},
-        "Cow":       {"hp":22,"atk":3, "def":1, "xp":15, "gold":(0,2),  "color":(220,220,200),"drop":[("Raw Fish",1,.4),("Bread",1,.5)]},
-        "Wolf":      {"hp":30,"atk":8, "def":4, "xp":45, "gold":(2,8),  "color":(100,100,120),"drop":[("Wolf Pelt",1,.7),("Raw Fish",1,.3)]},
-        "Guard":     {"hp":40,"atk":10,"def":8, "xp":80, "gold":(5,15), "color":(60,80,180),  "drop":[("Iron Ore",1,.3),("Health Potion",1,.2)]},
-        "Dark Mage": {"hp":55,"atk":14,"def":6, "xp":120,"gold":(8,20), "color":(120,30,160), "drop":[("Health Potion",2,.6),("Iron Ore",2,.4)]},
+        #          hp   atk  def  xp   gold       color            drop                               atk_spd aggro  spd
+        "Goblin":    {"hp":18,"atk":4, "def":2, "xp":25, "gold":(1,5),  "color":(60,160,60),  "drop":[("Goblin Bones",1,.9),("Logs",1,.3),("Gold Coin",3,.5)],  "aspd":70,  "aggro":130, "spd":1.2},
+        "Cow":       {"hp":22,"atk":3, "def":1, "xp":15, "gold":(0,2),  "color":(220,220,200),"drop":[("Raw Fish",1,.4),("Bread",1,.5)],                         "aspd":95,  "aggro":90,  "spd":0.7},
+        "Wolf":      {"hp":30,"atk":8, "def":4, "xp":45, "gold":(2,8),  "color":(100,100,120),"drop":[("Wolf Pelt",1,.7),("Raw Fish",1,.3)],                     "aspd":52,  "aggro":180, "spd":1.9},
+        "Guard":     {"hp":40,"atk":10,"def":8, "xp":80, "gold":(5,15), "color":(60,80,180),  "drop":[("Iron Ore",1,.3),("Health Potion",1,.2)],                 "aspd":65,  "aggro":110, "spd":1.0},
+        "Dark Mage": {"hp":55,"atk":14,"def":6, "xp":120,"gold":(8,20), "color":(120,30,160), "drop":[("Health Potion",2,.6),("Iron Ore",2,.4)],                 "aspd":75,  "aggro":150, "spd":0.9},
     }
 
     def __init__(self, name, tx, ty):
         self.name = name
         d = self.TEMPLATES[name]
-        self.max_hp  = d["hp"]; self.hp = self.max_hp
-        self.atk     = d["atk"]; self.defense = d["def"]
-        self.xp      = d["xp"]; self.gold_range = d["gold"]
-        self.drops   = d["drop"]; self.color = d["color"]
+        self.max_hp     = d["hp"]; self.hp = self.max_hp
+        self.atk        = d["atk"]; self.defense = d["def"]
+        self.xp         = d["xp"]; self.gold_range = d["gold"]
+        self.drops      = d["drop"]; self.color = d["color"]
         self.tx = tx; self.ty = ty
-        self.alive   = True
-        self._bob    = random.uniform(0, 6.28)
+        # Pixel-space position (float, for smooth movement)
+        self.px = float(tx * TILE_SIZE)
+        self.py = float(ty * TILE_SIZE)
+        self.alive      = True
+        self._bob       = random.uniform(0, 6.28)
+        # Real-time combat fields
+        self.attack_speed  = d["aspd"]
+        self.attack_timer  = random.randint(20, d["aspd"])  # stagger so all don't sync
+        self.aggro_range   = d["aggro"]
+        self.move_speed    = d["spd"]
+        self.aggroed       = False
+        self.flash_timer   = 0
+        self.wander_timer  = 0
+        self.wander_dx     = 0
+        self.wander_dy     = 0
 
     def loot(self):
         items = []
@@ -41,10 +55,14 @@ class Enemy:
     def draw(self, surf, cam_x, cam_y, tick):
         if not self.alive: return
         import math
+        if self.flash_timer > 0:
+            self.flash_timer -= 1
         bob = int(2 * math.sin(tick * 0.05 + self._bob))
-        sx = self.tx * TILE_SIZE - cam_x
-        sy = self.ty * TILE_SIZE - cam_y - bob
+        sx = int(self.px - cam_x)
+        sy = int(self.py - cam_y) - bob
         sz = TILE_SIZE - 4  # slightly bigger than before
+        # Hit flash — draw white tint overlay after normal sprite
+        flashing = self.flash_timer > 0 and self.flash_timer % 2 == 0
 
         c = self.color
         dark = tuple(max(0, v - 50) for v in c)
@@ -199,6 +217,12 @@ class Enemy:
             pygame.draw.circle(surf, (255, 80, 80), (sx + 9,   sy + 10), 3)
             pygame.draw.circle(surf, (255, 80, 80), (sx + sz - 5, sy + 10), 3)
 
+        # Hit flash overlay
+        if flashing:
+            flash_s = pygame.Surface((sz + 4, sz + 8), pygame.SRCALPHA)
+            flash_s.fill((255, 255, 255, 140))
+            surf.blit(flash_s, (sx - 2, sy - 4))
+
         # HP bar (above sprite)
         bw = sz
         ratio = self.hp / max(1, self.max_hp)
@@ -207,10 +231,11 @@ class Enemy:
         pygame.draw.rect(surf, bar_col,      (sx + 2, sy - 7, max(2, int(bw * ratio)), 5), border_radius=2)
         pygame.draw.rect(surf, (0,0,0),      (sx + 2, sy - 7, bw, 5), 1, border_radius=2)
 
-        # Name tag
+        # Name tag + aggro indicator
         font = pygame.font.SysFont("Arial", 13, bold=True)
-        lbl  = font.render(self.name, True, WHITE)
-        sh2  = font.render(self.name, True, BLACK)
+        name_str = ("⚔ " if self.aggroed else "") + self.name
+        lbl  = font.render(name_str, True, (255,80,80) if self.aggroed else WHITE)
+        sh2  = font.render(name_str, True, BLACK)
         surf.blit(sh2, (sx + sz // 2 - lbl.get_width() // 2 + 1, sy - 20))
         surf.blit(lbl, (sx + sz // 2 - lbl.get_width() // 2,     sy - 20))
 

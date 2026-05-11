@@ -4,7 +4,7 @@ import asyncio
 from constants import *
 from player import Player
 from world import World
-from combat import CombatSystem
+from combat import RealTimeCombat
 from npc import make_npcs
 from quest import QuestManager
 from ui import HUD, InventoryMenu, SkillsMenu, QuestMenu, DialogBox, ShopMenu, SkillBadgeBar
@@ -36,7 +36,8 @@ def tiles_adjacent(player):
     return [(tx+dx, ty+dy) for dx,dy in [(0,0),(0,1),(0,-1),(1,0),(-1,0),(1,1),(-1,1),(1,-1),(-1,-1)]]
 
 
-def try_interact(player, world, npcs, quest_mgr, dialog_box, shop_menu, combat):
+def try_interact(player, world, npcs, quest_mgr, dialog_box, shop_menu):
+    """Interact with NPCs and resource nodes only (combat is now real-time)."""
     if player.resource_cooldown > 0:
         return None
     ptx, pty = player.get_tile_pos()
@@ -48,11 +49,6 @@ def try_interact(player, world, npcs, quest_mgr, dialog_box, shop_menu, combat):
             else:
                 lines = npc.interact(player, quest_mgr)
                 dialog_box.open(lines); return "dialog"
-    # Enemies
-    for tx, ty in tiles_adjacent(player):
-        e = world.get_enemy_at(tx, ty)
-        if e and e.alive:
-            combat.start(player, e, world); return "combat"
     # Resource nodes
     for tx, ty in tiles_adjacent(player):
         node = world.get_node_at(tx, ty)
@@ -99,7 +95,6 @@ class Notification:
         tmp.set_alpha(alpha)
         sx = SCREEN_W//2 - lbl.get_width()//2
         sy = SCREEN_H - 175
-        # Backing pill
         pill = pygame.Surface((lbl.get_width()+24, 30), pygame.SRCALPHA)
         pygame.draw.rect(pill, (0,0,0,150), (0,0,lbl.get_width()+24,30), border_radius=8)
         surf.blit(pill, (sx-12, sy-4))
@@ -108,7 +103,6 @@ class Notification:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 async def fade_to_black(clock, surf, draw_fn, speed=10):
-    """Draw draw_fn each frame while overlaying a fade-to-black."""
     overlay = pygame.Surface((SCREEN_W, SCREEN_H))
     overlay.fill(BLACK)
     for alpha in range(0, 256, speed):
@@ -127,7 +121,6 @@ async def fade_to_black(clock, surf, draw_fn, speed=10):
 
 
 async def fade_from_black(clock, surf, speed=8):
-    """Fade in from a black screen (call right after the scene is first drawn)."""
     overlay = pygame.Surface((SCREEN_W, SCREEN_H))
     overlay.fill(BLACK)
     for alpha in range(255, -1, -speed):
@@ -179,7 +172,7 @@ async def run_game(clock, surf):
 
     dialog   = DialogBox()
     shop     = ShopMenu()
-    combat   = CombatSystem()
+    combat   = RealTimeCombat()
     hud      = HUD()
     skill_bar= SkillBadgeBar()
     inv_menu = InventoryMenu()
@@ -195,7 +188,7 @@ async def run_game(clock, surf):
         notif.push(text, color, dur)
 
     def do_interact():
-        result = try_interact(player, world, npcs, quest_mgr, dialog, shop, combat)
+        result = try_interact(player, world, npcs, quest_mgr, dialog, shop)
         if result and result.startswith("gathered:"):
             parts = result.split(":")
             item  = parts[1]
@@ -214,59 +207,8 @@ async def run_game(clock, surf):
             if event.type == pygame.QUIT:
                 running = False
 
-            # --- Combat ---
-            if combat.active:
-                # Touch: tap anywhere on result screen to continue
-                if combat.phase == "result":
-                    dismiss = (
-                        (event.type == pygame.KEYDOWN and
-                         event.key in (pygame.K_RETURN, pygame.K_z, pygame.K_SPACE))
-                        or event.type == pygame.MOUSEBUTTONDOWN
-                        or event.type == pygame.FINGERDOWN
-                    )
-                    if dismiss:
-                        outcome    = combat.outcome
-                        enemy_name = combat.enemy.name if combat.enemy else None
-                        if outcome == "lose":
-                            player.x = 30 * TILE_SIZE
-                            player.y = 32 * TILE_SIZE
-                            notify("You respawn at town...", CRIMSON, 180)
-                            world_shake.shake(8, 20)
-                        elif outcome == "win" and enemy_name:
-                            world_shake.shake(4, 10)
-                            # Snapshot BEFORE applying the kill
-                            pre_qty    = {
-                                (q.id, i): obj["qty"]
-                                for q in quest_mgr.quests.values()
-                                for i, obj in enumerate(q.objectives)
-                                if obj["type"] == "kill" and obj["target"] == enemy_name and not obj["done"]
-                            }
-                            pre_status = {q.id: q.status for q in quest_mgr.quests.values()}
-                            # Apply kill
-                            quest_mgr.notify("kill", enemy_name)
-                            quest_mgr.check_have(player)
-                            # Show progress notifications by comparing snapshots
-                            for q in quest_mgr.quests.values():
-                                for i, obj in enumerate(q.objectives):
-                                    if obj["type"] == "kill" and obj["target"] == enemy_name:
-                                        key = (q.id, i)
-                                        if key in pre_qty:
-                                            if obj["done"]:
-                                                notify(f"✦ Objective done: {obj['desc']}!", NEON_GREEN, 200)
-                                            elif obj["qty"] < pre_qty[key]:
-                                                notify(f"Quest: {obj['desc']}  ({obj['qty']} left)", GOLD, 140)
-                                # Only show "ready" banner the moment it transitions
-                                if q.status == "ready" and pre_status.get(q.id) != "ready":
-                                    notify(f"✦ Quest complete! Talk to Quest Giver: {q.title}", GOLD, 260)
-                        combat.reset()
-                        vpad.release_all()
-                else:
-                    combat.handle_event(event)
-                continue
-
-            # --- Open menus eat input ---
+            # --- Open overlay menus eat input ---
             if dialog.active:
-                # Tap anywhere to advance dialog
                 if event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
                     dialog.handle_event(pygame.event.Event(
                         pygame.KEYDOWN, key=pygame.K_RETURN, mod=0, unicode=""))
@@ -275,7 +217,6 @@ async def run_game(clock, surf):
                 continue
             if shop.active:
                 shop.handle_event(event)
-                # touch scroll in shop
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     shop.handle_click(event.pos)
                 continue
@@ -291,7 +232,7 @@ async def run_game(clock, surf):
                 q_menu.handle_event(event, quest_mgr)
                 continue
 
-            # --- Virtual pad (world state only) ---
+            # --- Virtual pad ---
             if vpad.handle_event(event):
                 continue
 
@@ -309,8 +250,8 @@ async def run_game(clock, surf):
         if "K" in taps:  sk_menu.toggle()
         if "Q" in taps:  q_menu.toggle()
 
-        # --- Movement ---
-        any_menu = any([combat.active, dialog.active, shop.active,
+        # --- Movement (never blocked by combat anymore) ---
+        any_menu = any([dialog.active, shop.active,
                         inv_menu.active, sk_menu.active, q_menu.active])
         if not any_menu:
             keys = pygame.key.get_pressed()
@@ -320,19 +261,11 @@ async def run_game(clock, surf):
             dy = kb_dy or vpad.dy
             if dx or dy:
                 player.move(dx, dy, world)
-                for e in world.enemies:
-                    if e.alive:
-                        if (abs(player.x - e.tx*TILE_SIZE) < TILE_SIZE-4 and
-                                abs(player.y - e.ty*TILE_SIZE) < TILE_SIZE-4):
-                            combat.start(player, e, world)
-                            vpad.release_all()
-                            break
             else:
                 player.moving = False
 
-        # Update
+        # --- Updates ---
         world.update()
-        combat.update()
         shop.update()
         inv_menu.update()
         particles.update()
@@ -343,20 +276,24 @@ async def run_game(clock, surf):
         if player.resource_cooldown > 0:
             player.resource_cooldown -= 1
 
+        # Real-time combat (always runs — enemies always active)
+        cam_x, cam_y = camera(player, world, world_shake)
+        combat.update(player, world.enemies, world,
+                      cam_x, cam_y, quest_mgr, notify, world_shake)
+
         # Level-up particles
         if player.level_up_msg:
-            cam_x, cam_y = camera(player, world, world_shake)
             px = int(player.x - cam_x + player.size//2)
             py = int(player.y - cam_y)
             particles.level_up_burst(px, py)
 
-        # Draw world
-        cam_x, cam_y = camera(player, world, world_shake)
+        # --- Draw world ---
         surf.fill((8,10,20))
         world.draw(surf, cam_x, cam_y)
         for npc in npcs:
             npc.draw(surf, cam_x, cam_y)
         player.draw(surf, cam_x, cam_y)
+        combat.draw(surf)       # particles only
         particles.draw(surf)
 
         draw_vignette(surf, strength=120)
@@ -364,30 +301,22 @@ async def run_game(clock, surf):
         # UI
         hud.draw(surf, player, world, cam_x, cam_y)
 
-        # Detect nearby resource skill for badge highlight
+        # Skill badge highlight near resource
         _nearby_skill = None
         for tx, ty in tiles_adjacent(player):
             node = world.get_node_at(tx, ty)
             if node:
-                _nearby_skill = {
-                    "tree": SK_WC,
-                    "ore":  SK_MIN,
-                    "fish": SK_FISH,
-                }.get(node.kind)
+                _nearby_skill = {"tree":SK_WC,"ore":SK_MIN,"fish":SK_FISH}.get(node.kind)
                 break
-        # Show badge bar only when no overlay menu is open
-        if not any([combat.active, dialog.active, shop.active,
-                    inv_menu.active, sk_menu.active, q_menu.active]):
+
+        if not any_menu:
             skill_bar.draw(surf, player, nearby_skill=_nearby_skill)
 
         notif.draw(surf)
 
-        # Virtual controls (hide when a menu is open to give menus full screen)
-        if not any([combat.active, dialog.active, shop.active,
-                    inv_menu.active, sk_menu.active, q_menu.active]):
+        if not any_menu:
             vpad.draw(surf)
 
-        combat.draw(surf)
         dialog.draw(surf)
         shop.draw(surf)
         inv_menu.draw(surf, player)
@@ -396,7 +325,6 @@ async def run_game(clock, surf):
 
         pygame.display.flip()
 
-        # Fade in from black on the very first game frame
         if not game_faded_in:
             await fade_from_black(clock, surf, speed=8)
             game_faded_in = True
