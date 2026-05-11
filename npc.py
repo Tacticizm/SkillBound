@@ -76,6 +76,7 @@ def make_npcs():
     return [
         NPC("Elder Bob",    29, 29, (200,140,60), role="talk"),
         NPC("Quest Giver",  31, 29, (60,200,200), role="quest", quest_id="prove_yourself"),
+        NPC("Ranger",       33, 29, (60,180,100), role="quest", quest_id="wolf_hunter"),
         NPC("Shop",         29, 31, (200,180,40), role="shop",
             shop_inv=["Bronze Sword","Iron Sword","Steel Sword",
                       "Bronze Shield","Iron Shield","Leather Armour",

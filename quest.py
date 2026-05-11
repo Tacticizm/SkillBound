@@ -9,7 +9,7 @@ class Quest:
         self.description = description
         self.objectives  = objectives   # list of {"desc", "type", "target", "qty", "done"}
         self.rewards     = rewards      # {"xp": {sk: amt}, "gold": n, "items": [(name,qty)]}
-        self.status      = "available"  # available | active | complete
+        self.status      = "active"      # active | ready | complete  (auto-started)
 
     def progress(self, event_type, target, qty=1):
         if self.status != "active":
@@ -100,20 +100,16 @@ class QuestManager:
         q = self.quests.get(quest_id)
         if not q:
             return [f"{npc_name}: Nothing for you right now."]
-        if q.status == "available":
-            q.status = "active"
-            lines = [f"{npc_name}: I have a task for you!", f'Quest started: "{q.title}"', ""]
+        if q.status == "active":
+            lines = [f"{npc_name}: Here's what I need from you:", f'Quest: "{q.title}"', ""]
             lines += q.summary()
-            return lines
-        elif q.status == "active":
-            lines = [f"{npc_name}: Keep at it!  Quest: {q.title}", ""]
-            lines += q.summary()
+            lines += ["", "Return when you've completed everything!"]
             return lines
         elif q.status == "ready":
             q.claim_reward(player)
             r = q.rewards
-            lines = [f'{npc_name}: Well done! Quest "{q.title}" complete!',
-                     f'+{r.get("gold",0)}gp, XP rewards granted!']
+            lines = [f'{npc_name}: Excellent work! Quest "{q.title}" complete!',
+                     f'+{r.get("gold",0)}gp  XP rewards granted!']
             for name, qty in r.get("items", []):
                 lines.append(f'  + {qty}x {name}')
             return lines
