@@ -47,7 +47,6 @@ class HUD:
         self._draw_status_panel(surf, player)
         self._draw_minimap(surf, player, world)
         self._draw_hotbar_hints(surf)
-        self._draw_levelup(surf, player)
 
     def _draw_status_panel(self, surf, player):
         pw, ph = 230, 110
@@ -150,26 +149,8 @@ class HUD:
             lbl = font.render(label, True, GRAY)
             surf.blit(lbl, (x+32, y+4))
 
-    def _draw_levelup(self, surf, player):
-        if not player.level_up_msg:
-            return
-        msg = player.level_up_msg[0]
-        font = pygame.font.SysFont("Georgia", 30, bold=True)
-        t = self.tick
-        pulse = int(10 * math.sin(t * 0.15))
-        lbl_w = font.size(msg)[0] + 60
-        px = SCREEN_W//2 - lbl_w//2
-        py = SCREEN_H//2 - 30 + pulse
-        draw_panel(surf, px, py, lbl_w, 52, col=(60,50,0), edge=GOLD, alpha=230, radius=10)
-        glow_circle(surf, GOLD, (SCREEN_W//2, py+26), 80, strength=60)
-        draw_text_shadow(surf, f"✦ LEVEL UP!  {msg} ✦",
-                         font, GOLD, px+16, py+10, shadow_col=(80,60,0), offset=3)
-
-        player._levelup_timer = getattr(player, "_levelup_timer", 200)
-        player._levelup_timer -= 1
-        if player._levelup_timer <= 0:
-            player.level_up_msg.pop(0)
-            player._levelup_timer = 200
+    # _draw_levelup removed — level-up messages now use the Notification system
+    # and a single particle burst, avoiding the per-frame particle spam that caused lag.
 
 
 # ── Inventory ─────────────────────────────────────────────────────────────────

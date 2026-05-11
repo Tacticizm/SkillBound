@@ -281,11 +281,14 @@ async def run_game(clock, surf):
         combat.update(player, world.enemies, world,
                       cam_x, cam_y, quest_mgr, notify, world_shake)
 
-        # Level-up particles
+        # Level-up — fire once, then clear (was spawning 45 particles every frame)
         if player.level_up_msg:
             px = int(player.x - cam_x + player.size//2)
             py = int(player.y - cam_y)
-            particles.level_up_burst(px, py)
+            for msg in player.level_up_msg:
+                notify(f"✦ LEVEL UP!  {msg}", GOLD, 120)
+                particles.sparkle(px, py, GOLD, count=14)
+            player.level_up_msg.clear()
 
         # --- Draw world ---
         surf.fill((8,10,20))

@@ -323,9 +323,9 @@ class ParticleSystem:
                                        (180, 140, 255), size=18, life=120))
 
     def level_up_burst(self, x, y):
-        self.burst(x, y, GOLD, count=30, speed=4.0, size=5)
-        self.burst(x, y, WHITE, count=15, speed=2.0, size=3)
-        self.texts.append(FloatingText(x, y - 50, "LEVEL UP!", GOLD, size=36, life=160))
+        # Kept lightweight — caller should only invoke this ONCE per level-up event
+        self.burst(x, y, GOLD,  count=16, speed=3.5, size=4)
+        self.burst(x, y, WHITE, count=8,  speed=2.0, size=3)
 
     def update(self):
         self.particles = [p for p in self.particles if p.alive]
