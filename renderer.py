@@ -134,6 +134,164 @@ class FloatingText:
         surf.blit(tmp,    (int(self.x) - img.get_width()//2,     int(self.y)))
 
 
+class DamageNumber:
+    """Red floating damage number with white outline — big, punchy pixel art style."""
+    def __init__(self, x, y, text, color, size=34, life=90):
+        self.x, self.y = float(x), float(y)
+        self.text  = text
+        self.color = color
+        self.size  = size
+        self.life  = life
+        self.max_life = life
+        self.alive = True
+        self.vy    = -2.2
+        self.vx    = random.uniform(-0.5, 0.5)
+
+    def update(self):
+        self.x  += self.vx
+        self.y  += self.vy
+        self.vy *= 0.94
+        self.vx *= 0.90
+        self.life -= 1
+        if self.life <= 0:
+            self.alive = False
+
+    def draw(self, surf):
+        if not self.alive:
+            return
+        alpha = int(255 * min(1.0, self.life / self.max_life))
+        font  = pygame.font.SysFont("Arial", self.size, bold=True)
+        # White outline: render in 4 directions
+        outline_surf = font.render(self.text, True, (255, 255, 255))
+        tmp_outline  = pygame.Surface(
+            (outline_surf.get_width() + 4, outline_surf.get_height() + 4),
+            pygame.SRCALPHA)
+        cx = int(self.x) - outline_surf.get_width() // 2
+        cy = int(self.y)
+        for ox, oy in ((-2,0),(2,0),(0,-2),(0,2),(-1,-1),(1,-1),(-1,1),(1,1)):
+            s = font.render(self.text, True, (255, 255, 255))
+            s.set_alpha(alpha)
+            surf.blit(s, (cx + ox, cy + oy))
+        # Main red text
+        main = font.render(self.text, True, self.color)
+        main.set_alpha(alpha)
+        surf.blit(main, (cx, cy))
+
+
+class AttackArc:
+    """Blue curved swoosh effect drawn during combat attacks."""
+    ARC_COLOR  = (50, 180, 255)
+    GLOW_COLOR = (30, 120, 200)
+
+    def __init__(self, cx, cy, radius=80, start_angle=0.3, sweep=2.0,
+                 life=20, width=4):
+        self.cx   = cx
+        self.cy   = cy
+        self.radius      = radius
+        self.start_angle = start_angle
+        self.sweep       = sweep
+        self.life        = life
+        self.max_life    = life
+        self.width       = width
+        self.alive       = True
+
+    def update(self):
+        self.life -= 1
+        if self.life <= 0:
+            self.alive = False
+        # Arc sweeps outward and expands slightly
+        self.radius += 2
+
+    def draw(self, surf):
+        if not self.alive:
+            return
+        t = self.life / self.max_life
+        alpha = int(255 * t)
+        r, g, b = self.ARC_COLOR
+
+        # Draw multiple overlapping arcs with decreasing alpha for glow
+        rect = pygame.Rect(
+            self.cx - self.radius,
+            self.cy - self.radius,
+            self.radius * 2,
+            self.radius * 2,
+        )
+        if rect.width < 4 or rect.height < 4:
+            return
+
+        # Glow layers (wider, more transparent)
+        for layer in range(4, 0, -1):
+            layer_alpha = max(0, alpha - layer * 40)
+            layer_width = self.width + layer * 2
+            glow_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+            pygame.draw.arc(
+                glow_surf,
+                (r, g, b, layer_alpha),
+                rect,
+                self.start_angle,
+                self.start_angle + self.sweep,
+                layer_width,
+            )
+            surf.blit(glow_surf, (0, 0))
+
+        # Core bright arc
+        core_surf = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        pygame.draw.arc(
+            core_surf,
+            (r, g, b, alpha),
+            rect,
+            self.start_angle,
+            self.start_angle + self.sweep,
+            self.width,
+        )
+        # Bright white center line for punch
+        pygame.draw.arc(
+            core_surf,
+            (200, 240, 255, min(255, alpha)),
+            rect,
+            self.start_angle,
+            self.start_angle + self.sweep,
+            max(1, self.width - 2),
+        )
+        surf.blit(core_surf, (0, 0))
+
+
+class AttackArcSystem:
+    """Manages a list of active AttackArc effects."""
+    def __init__(self):
+        self.arcs = []
+
+    def spawn(self, cx, cy, radius=80, angle_offset=0.0):
+        import math
+        start = math.pi * 0.1 + angle_offset
+        self.arcs.append(AttackArc(
+            cx, cy,
+            radius=radius,
+            start_angle=start,
+            sweep=math.pi * 1.2,
+            life=22,
+            width=5,
+        ))
+        # Second offset arc for richer look
+        self.arcs.append(AttackArc(
+            cx, cy,
+            radius=radius - 15,
+            start_angle=start + 0.3,
+            sweep=math.pi * 0.9,
+            life=16,
+            width=3,
+        ))
+
+    def update(self):
+        self.arcs = [a for a in self.arcs if a.alive]
+        for a in self.arcs:
+            a.update()
+
+    def draw(self, surf):
+        for a in self.arcs:
+            a.draw(surf)
+
+
 class ParticleSystem:
     def __init__(self):
         self.particles = []
@@ -156,9 +314,9 @@ class ParticleSystem:
                 vx, vy, color, random.randint(20, 40), size=2, gravity=0.05))
 
     def damage_number(self, x, y, amount, is_player_hit=False):
-        col = CRIMSON if is_player_hit else GOLD
-        size = 30 if amount >= 10 else 24
-        self.texts.append(FloatingText(x, y - 20, f"-{amount}", col, size=size, life=90))
+        col = (255, 60, 60) if is_player_hit else (255, 60, 60)
+        size = 36 if amount >= 10 else 32
+        self.texts.append(DamageNumber(x, y - 20, f"{amount}", col, size=size, life=90))
 
     def xp_text(self, x, y, skill, amount):
         self.texts.append(FloatingText(x, y - 30, f"+{amount} {skill} XP",

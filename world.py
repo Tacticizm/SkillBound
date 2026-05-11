@@ -1,7 +1,8 @@
 import pygame
 import random
 from constants import *
-from renderer import get_tile_surf, GOLD, CRIMSON, NEON_GREEN
+from pixelart import get_tile_surf
+from renderer import GOLD, CRIMSON, NEON_GREEN
 
 WHITE = (255,255,255)
 BLACK = (0,0,0)
@@ -39,36 +40,179 @@ class Enemy:
 
     def draw(self, surf, cam_x, cam_y, tick):
         if not self.alive: return
-        bob = int(2 * (1 + __import__('math').sin(tick*0.05 + self._bob)))
+        import math
+        bob = int(2 * math.sin(tick * 0.05 + self._bob))
         sx = self.tx * TILE_SIZE - cam_x
         sy = self.ty * TILE_SIZE - cam_y - bob
-        sz = TILE_SIZE - 6
+        sz = TILE_SIZE - 4  # slightly bigger than before
 
-        # Shadow
-        sh = pygame.Surface((sz+4, 8), pygame.SRCALPHA)
-        pygame.draw.ellipse(sh, (0,0,0,60), (0,0,sz+4,8))
-        surf.blit(sh, (sx+1, sy+sz-2))
+        c = self.color
+        dark = tuple(max(0, v - 50) for v in c)
+        light = tuple(min(255, v + 60) for v in c)
 
-        # Body
-        pygame.draw.rect(surf, self.color, (sx+3, sy+3, sz, sz), border_radius=5)
-        pygame.draw.rect(surf, tuple(min(255,c+40) for c in self.color),
-                         (sx+5, sy+5, sz-4, sz//3), border_radius=3)
+        # Shadow ellipse
+        sh = pygame.Surface((sz + 6, 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(sh, (0, 0, 0, 70), (0, 0, sz + 6, 10))
+        surf.blit(sh, (sx - 1, sy + sz - 3))
 
-        # Eyes
-        pygame.draw.circle(surf, (255,80,80), (sx+9,  sy+10), 3)
-        pygame.draw.circle(surf, (255,80,80), (sx+sz-5, sy+10), 3)
+        # --- Pixel-art chunky body shapes per enemy type ---
+        if self.name == "Goblin":
+            # Squat green humanoid — head + stout body
+            # Legs
+            pygame.draw.rect(surf, dark,  (sx + 4,  sy + sz - 10, 6, 10))  # left
+            pygame.draw.rect(surf, dark,  (sx + sz - 10, sy + sz - 10, 6, 10))  # right
+            pygame.draw.rect(surf, (0,0,0), (sx + 4, sy + sz - 10, 6, 10), 1)
+            pygame.draw.rect(surf, (0,0,0), (sx + sz - 10, sy + sz - 10, 6, 10), 1)
+            # Body
+            pygame.draw.rect(surf, c,     (sx + 3, sy + sz // 2, sz - 6, sz // 2 - 6), border_radius=3)
+            pygame.draw.rect(surf, (0,0,0),(sx + 3, sy + sz // 2, sz - 6, sz // 2 - 6), 1, border_radius=3)
+            # Belly highlight
+            pygame.draw.rect(surf, light, (sx + 6, sy + sz // 2 + 3, sz - 12, 5), border_radius=2)
+            # Head (larger than body, round)
+            head_r = sz // 3 + 1
+            hcx = sx + sz // 2
+            hcy = sy + sz // 2 - head_r + 2
+            pygame.draw.circle(surf, c,     (hcx, hcy), head_r)
+            pygame.draw.circle(surf, (0,0,0),(hcx, hcy), head_r, 1)
+            # Ears (pointed)
+            pygame.draw.polygon(surf, c,     [(hcx - head_r, hcy - 4), (hcx - head_r - 6, hcy - 14), (hcx - head_r + 4, hcy - 6)])
+            pygame.draw.polygon(surf, c,     [(hcx + head_r, hcy - 4), (hcx + head_r + 6, hcy - 14), (hcx + head_r - 4, hcy - 6)])
+            # Eyes — big red pixels
+            pygame.draw.rect(surf, (255, 50, 50),  (hcx - 7, hcy - 3, 5, 5))
+            pygame.draw.rect(surf, (255, 50, 50),  (hcx + 2, hcy - 3, 5, 5))
+            pygame.draw.rect(surf, (0,0,0), (hcx - 6, hcy - 2, 3, 3))
+            pygame.draw.rect(surf, (0,0,0), (hcx + 3, hcy - 2, 3, 3))
 
-        # HP bar
+        elif self.name == "Cow":
+            # Blocky white/cream body, black spots
+            pygame.draw.rect(surf, c,      (sx + 2, sy + sz // 3, sz - 4, sz * 2 // 3 - 4), border_radius=4)
+            pygame.draw.rect(surf, (0,0,0),(sx + 2, sy + sz // 3, sz - 4, sz * 2 // 3 - 4), 1, border_radius=4)
+            # Spots
+            pygame.draw.rect(surf, dark,   (sx + 8,  sy + sz // 2,     8, 6), border_radius=2)
+            pygame.draw.rect(surf, dark,   (sx + sz - 14, sy + sz // 2 + 4, 6, 5), border_radius=2)
+            # Head
+            pygame.draw.rect(surf, c,      (sx + sz // 4, sy + 4, sz // 2, sz // 3 + 2), border_radius=4)
+            pygame.draw.rect(surf, (0,0,0),(sx + sz // 4, sy + 4, sz // 2, sz // 3 + 2), 1, border_radius=4)
+            # Horns
+            pygame.draw.rect(surf, dark,   (sx + sz // 4 + 2, sy,     3, 6))
+            pygame.draw.rect(surf, dark,   (sx + sz * 3 // 4 - 5, sy, 3, 6))
+            # Eyes — black pixels
+            ey = sy + sz // 3 - 4
+            pygame.draw.rect(surf, (0,0,0),(sx + sz // 4 + 5,  ey, 4, 4))
+            pygame.draw.rect(surf, (0,0,0),(sx + sz * 3 // 4 - 9, ey, 4, 4))
+            # White eye gleam
+            pygame.draw.rect(surf, WHITE,  (sx + sz // 4 + 6,  ey, 2, 2))
+            pygame.draw.rect(surf, WHITE,  (sx + sz * 3 // 4 - 8, ey, 2, 2))
+
+        elif self.name == "Wolf":
+            # Sleek grey body, triangle ears
+            # Body
+            pygame.draw.rect(surf, c,      (sx + 3, sy + sz // 3 + 2, sz - 6, sz * 2 // 3 - 4), border_radius=3)
+            pygame.draw.rect(surf, (0,0,0),(sx + 3, sy + sz // 3 + 2, sz - 6, sz * 2 // 3 - 4), 1, border_radius=3)
+            # Fur lighter stripe on back
+            pygame.draw.rect(surf, light,  (sx + sz // 4, sy + sz // 3 + 4, sz // 2, 5))
+            # Head
+            hcx = sx + sz // 2
+            hcy = sy + sz // 3
+            pygame.draw.rect(surf, c,      (hcx - sz // 4, hcy - sz // 5, sz // 2, sz // 3), border_radius=3)
+            pygame.draw.rect(surf, (0,0,0),(hcx - sz // 4, hcy - sz // 5, sz // 2, sz // 3), 1, border_radius=3)
+            # Ears (triangles)
+            pygame.draw.polygon(surf, dark, [(hcx - sz // 5, hcy - sz // 5),
+                                              (hcx - sz // 5 - 6, hcy - sz // 5 - 10),
+                                              (hcx - sz // 5 + 5, hcy - sz // 5 - 2)])
+            pygame.draw.polygon(surf, dark, [(hcx + sz // 5, hcy - sz // 5),
+                                              (hcx + sz // 5 + 6, hcy - sz // 5 - 10),
+                                              (hcx + sz // 5 - 5, hcy - sz // 5 - 2)])
+            # Eyes — yellow pixels
+            ey = hcy - sz // 5 + 4
+            pygame.draw.rect(surf, (240, 200, 0), (hcx - 8, ey, 5, 4))
+            pygame.draw.rect(surf, (240, 200, 0), (hcx + 3, ey, 5, 4))
+            pygame.draw.rect(surf, (0,0,0),       (hcx - 7, ey + 1, 3, 2))
+            pygame.draw.rect(surf, (0,0,0),       (hcx + 4, ey + 1, 3, 2))
+            # Snout
+            pygame.draw.rect(surf, light,  (hcx - 5, hcy - sz // 5 + 8, 10, 5), border_radius=2)
+            pygame.draw.rect(surf, dark,   (hcx - 2, hcy - sz // 5 + 8, 4, 3))
+
+        elif self.name == "Guard":
+            # Armoured blue humanoid — rectangular metal look
+            # Legs
+            pygame.draw.rect(surf, dark,   (sx + 4, sy + sz - 10, 7, 10))
+            pygame.draw.rect(surf, dark,   (sx + sz - 11, sy + sz - 10, 7, 10))
+            pygame.draw.rect(surf, (0,0,0),(sx + 4, sy + sz - 10, 7, 10), 1)
+            pygame.draw.rect(surf, (0,0,0),(sx + sz - 11, sy + sz - 10, 7, 10), 1)
+            # Armour body — rectangular with highlight
+            pygame.draw.rect(surf, c,      (sx + 3, sy + sz // 3 + 2, sz - 6, sz // 2), border_radius=2)
+            pygame.draw.rect(surf, (0,0,0),(sx + 3, sy + sz // 3 + 2, sz - 6, sz // 2), 1, border_radius=2)
+            pygame.draw.rect(surf, light,  (sx + 5, sy + sz // 3 + 4, sz - 10, 5))  # armor sheen
+            # Shield on left arm
+            pygame.draw.rect(surf, (100, 100, 120), (sx, sy + sz // 3 + 4, 5, 12), border_radius=1)
+            pygame.draw.rect(surf, (180, 180, 200), (sx, sy + sz // 3 + 4, 5, 12), 1, border_radius=1)
+            # Helmet
+            pygame.draw.rect(surf, c,      (sx + sz // 4 - 1, sy + 2, sz // 2 + 2, sz // 3 + 2), border_radius=3)
+            pygame.draw.rect(surf, (0,0,0),(sx + sz // 4 - 1, sy + 2, sz // 2 + 2, sz // 3 + 2), 1, border_radius=3)
+            # Visor slit
+            pygame.draw.rect(surf, (30, 30, 80), (sx + sz // 4 + 3, sy + sz // 3 - 4, sz // 2 - 6, 5))
+            pygame.draw.rect(surf, (100, 120, 220),(sx + sz // 4 + 3, sy + sz // 3 - 3, sz // 2 - 6, 2))
+
+        elif self.name == "Dark Mage":
+            # Robed purple figure with glowing eyes
+            # Robe
+            pygame.draw.polygon(surf, c, [
+                (sx + sz // 2, sy + 6),
+                (sx + 2, sy + sz - 2),
+                (sx + sz - 2, sy + sz - 2),
+            ])
+            pygame.draw.polygon(surf, (0,0,0), [
+                (sx + sz // 2, sy + 6),
+                (sx + 2, sy + sz - 2),
+                (sx + sz - 2, sy + sz - 2),
+            ], 1)
+            # Inner robe shading
+            pygame.draw.polygon(surf, dark, [
+                (sx + sz // 2, sy + 12),
+                (sx + 6, sy + sz - 4),
+                (sx + sz - 6, sy + sz - 4),
+            ])
+            # Hood/head
+            hcx = sx + sz // 2
+            hcy = sy + sz // 4 + 2
+            pygame.draw.circle(surf, dark,    (hcx, hcy), sz // 4 + 2)
+            pygame.draw.circle(surf, (0,0,0), (hcx, hcy), sz // 4 + 2, 1)
+            # Glowing purple eyes
+            eye_col = (200, 100, 255)
+            glow_scale = int(2 + math.sin(tick * 0.08) * 1)
+            pygame.draw.rect(surf, eye_col, (hcx - 8, hcy - 2, 5 + glow_scale, 4))
+            pygame.draw.rect(surf, eye_col, (hcx + 3, hcy - 2, 5 + glow_scale, 4))
+            pygame.draw.rect(surf, WHITE,   (hcx - 7, hcy - 1, 3, 2))
+            pygame.draw.rect(surf, WHITE,   (hcx + 4, hcy - 1, 3, 2))
+            # Floating orb
+            orb_ox = int(10 * math.cos(tick * 0.06))
+            orb_oy = int(6  * math.sin(tick * 0.09))
+            pygame.draw.circle(surf, (180, 80, 255), (hcx + 20 + orb_ox, hcy - 8 + orb_oy), 5)
+            pygame.draw.circle(surf, WHITE,           (hcx + 20 + orb_ox, hcy - 8 + orb_oy), 2)
+
+        else:
+            # Generic fallback: simple rectangle
+            pygame.draw.rect(surf, c,      (sx + 3, sy + 3, sz, sz), border_radius=4)
+            pygame.draw.rect(surf, (0,0,0),(sx + 3, sy + 3, sz, sz), 1, border_radius=4)
+            pygame.draw.rect(surf, light,  (sx + 5, sy + 5, sz - 4, sz // 3), border_radius=2)
+            pygame.draw.circle(surf, (255, 80, 80), (sx + 9,   sy + 10), 3)
+            pygame.draw.circle(surf, (255, 80, 80), (sx + sz - 5, sy + 10), 3)
+
+        # HP bar (above sprite)
         bw = sz
         ratio = self.hp / max(1, self.max_hp)
         bar_col = NEON_GREEN if ratio > 0.5 else (GOLD if ratio > 0.25 else CRIMSON)
-        pygame.draw.rect(surf, (40,10,10),  (sx+3, sy-6, bw, 4), border_radius=2)
-        pygame.draw.rect(surf, bar_col,     (sx+3, sy-6, max(2,int(bw*ratio)), 4), border_radius=2)
+        pygame.draw.rect(surf, (40, 10, 10), (sx + 2, sy - 7, bw, 5), border_radius=2)
+        pygame.draw.rect(surf, bar_col,      (sx + 2, sy - 7, max(2, int(bw * ratio)), 5), border_radius=2)
+        pygame.draw.rect(surf, (0,0,0),      (sx + 2, sy - 7, bw, 5), 1, border_radius=2)
 
-        # Name tag (hover)
-        font = pygame.font.SysFont("Arial", 13)
+        # Name tag
+        font = pygame.font.SysFont("Arial", 13, bold=True)
         lbl  = font.render(self.name, True, WHITE)
-        surf.blit(lbl, (sx + sz//2 - lbl.get_width()//2, sy - 18))
+        sh2  = font.render(self.name, True, BLACK)
+        surf.blit(sh2, (sx + sz // 2 - lbl.get_width() // 2 + 1, sy - 20))
+        surf.blit(lbl, (sx + sz // 2 - lbl.get_width() // 2,     sy - 20))
 
 
 class ResourceNode:

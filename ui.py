@@ -547,6 +547,122 @@ class DialogBox:
             surf.blit(pg, (bx+16, by+bh-24))
 
 
+# ── Skill Badge Bar ───────────────────────────────────────────────────────────
+class SkillBadgeBar:
+    """Circular skill badges shown at the bottom-center of the screen.
+
+    Each badge shows the skill letter icon inside a gold-outlined circle,
+    with the level number. When a relevant resource node is nearby the badge
+    for that skill is highlighted and shows a 'SkillName Lvl X' label.
+    """
+
+    BADGE_RADIUS   = 28
+    BADGE_SPACING  = 70
+    Y_CENTER       = SCREEN_H - 45
+
+    # ASCII letter icons to use (emoji cause font issues on many systems)
+    SKILL_LETTERS = {
+        SK_ATK:  "A",
+        SK_DEF:  "D",
+        SK_HP:   "H",
+        SK_WC:   "W",
+        SK_MIN:  "M",
+        SK_FISH: "F",
+        SK_COOK: "C",
+        SK_RANGE:"R",
+    }
+
+    def __init__(self):
+        self.tick = 0
+
+    def draw(self, surf, player, nearby_skill=None):
+        """Draw badge bar.
+
+        nearby_skill: skill name string (e.g. SK_WC) that is contextually
+                      active (player is next to a matching resource node).
+        """
+        self.tick += 1
+        n = len(SKILLS)
+        total_w = (n - 1) * self.BADGE_SPACING
+        start_x = SCREEN_W // 2 - total_w // 2
+
+        for i, sk_name in enumerate(SKILLS):
+            cx = start_x + i * self.BADGE_SPACING
+            cy = self.Y_CENTER
+            sk   = player.skills[sk_name]
+            lvl  = sk.level
+            col  = SKILL_COLORS.get(sk_name, WHITE)
+            letter = self.SKILL_LETTERS.get(sk_name, "?")
+            highlighted = (sk_name == nearby_skill)
+
+            # --- Semi-transparent backing circle ---
+            bg_surf = pygame.Surface((self.BADGE_RADIUS * 2 + 8,
+                                      self.BADGE_RADIUS * 2 + 8), pygame.SRCALPHA)
+            bg_cx = bg_cy = self.BADGE_RADIUS + 4
+            pygame.draw.circle(bg_surf, (0, 0, 0, 140),
+                               (bg_cx, bg_cy), self.BADGE_RADIUS + 2)
+            surf.blit(bg_surf, (cx - self.BADGE_RADIUS - 4,
+                                cy - self.BADGE_RADIUS - 4))
+
+            # --- Outer gold ring (thicker when highlighted) ---
+            ring_w = 4 if highlighted else 2
+            ring_col = GOLD
+            if highlighted:
+                pulse = int(30 * abs(math.sin(self.tick * 0.12)))
+                ring_col = (
+                    min(255, 255),
+                    min(255, 210 + pulse),
+                    min(255, 50),
+                )
+            pygame.draw.circle(surf, ring_col, (cx, cy),
+                               self.BADGE_RADIUS, ring_w)
+
+            # --- Inner filled circle (skill color, dimmed) ---
+            inner_surf = pygame.Surface((self.BADGE_RADIUS * 2,
+                                         self.BADGE_RADIUS * 2), pygame.SRCALPHA)
+            r, g, b = col
+            inner_alpha = 200 if highlighted else 140
+            pygame.draw.circle(inner_surf, (r, g, b, inner_alpha),
+                               (self.BADGE_RADIUS, self.BADGE_RADIUS),
+                               self.BADGE_RADIUS - ring_w - 1)
+            surf.blit(inner_surf, (cx - self.BADGE_RADIUS,
+                                   cy - self.BADGE_RADIUS))
+
+            # --- Skill letter icon ---
+            icon_size = 20 if highlighted else 17
+            font_icon = pygame.font.SysFont("Arial", icon_size, bold=True)
+            icon_lbl  = font_icon.render(letter, True, WHITE)
+            # shadow
+            sh = font_icon.render(letter, True, BLACK)
+            surf.blit(sh, (cx - icon_lbl.get_width() // 2 + 1,
+                           cy - icon_lbl.get_height() // 2 - 4 + 1))
+            surf.blit(icon_lbl, (cx - icon_lbl.get_width() // 2,
+                                 cy - icon_lbl.get_height() // 2 - 4))
+
+            # --- Level number ---
+            font_lvl = pygame.font.SysFont("Arial", 12, bold=True)
+            lvl_lbl  = font_lvl.render(str(lvl), True, GOLD)
+            surf.blit(lvl_lbl, (cx - lvl_lbl.get_width() // 2,
+                                cy + self.BADGE_RADIUS // 2 - 2))
+
+            # --- Highlighted label: "SkillName Lvl X" ---
+            if highlighted:
+                font_lbl2 = pygame.font.SysFont("Arial", 15, bold=True)
+                label_str = f"{sk_name} Lvl {lvl}"
+                lbl_surf  = font_lbl2.render(label_str, True, GOLD)
+                lx = cx - lbl_surf.get_width() // 2
+                ly = cy - self.BADGE_RADIUS - 22
+                # Backing pill
+                pill = pygame.Surface((lbl_surf.get_width() + 14,
+                                        lbl_surf.get_height() + 6),
+                                       pygame.SRCALPHA)
+                pygame.draw.rect(pill, (0, 0, 0, 180),
+                                 (0, 0, pill.get_width(), pill.get_height()),
+                                 border_radius=6)
+                surf.blit(pill, (lx - 7, ly - 3))
+                surf.blit(lbl_surf, (lx, ly))
+
+
 # ── Shop ──────────────────────────────────────────────────────────────────────
 class ShopMenu:
     def __init__(self):

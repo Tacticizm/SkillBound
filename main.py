@@ -7,7 +7,7 @@ from world import World
 from combat import CombatSystem
 from npc import make_npcs
 from quest import QuestManager
-from ui import HUD, InventoryMenu, SkillsMenu, QuestMenu, DialogBox, ShopMenu
+from ui import HUD, InventoryMenu, SkillsMenu, QuestMenu, DialogBox, ShopMenu, SkillBadgeBar
 from titlescreen import TitleScreen
 from controls import VirtualControls
 from renderer import (ParticleSystem, ScreenShake, Transition,
@@ -181,6 +181,7 @@ async def run_game(clock, surf):
     shop     = ShopMenu()
     combat   = CombatSystem()
     hud      = HUD()
+    skill_bar= SkillBadgeBar()
     inv_menu = InventoryMenu()
     sk_menu  = SkillsMenu()
     q_menu   = QuestMenu()
@@ -362,6 +363,23 @@ async def run_game(clock, surf):
 
         # UI
         hud.draw(surf, player, world, cam_x, cam_y)
+
+        # Detect nearby resource skill for badge highlight
+        _nearby_skill = None
+        for tx, ty in tiles_adjacent(player):
+            node = world.get_node_at(tx, ty)
+            if node:
+                _nearby_skill = {
+                    "tree": SK_WC,
+                    "ore":  SK_MIN,
+                    "fish": SK_FISH,
+                }.get(node.kind)
+                break
+        # Show badge bar only when no overlay menu is open
+        if not any([combat.active, dialog.active, shop.active,
+                    inv_menu.active, sk_menu.active, q_menu.active]):
+            skill_bar.draw(surf, player, nearby_skill=_nearby_skill)
+
         notif.draw(surf)
 
         # Virtual controls (hide when a menu is open to give menus full screen)

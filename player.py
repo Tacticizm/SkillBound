@@ -202,58 +202,111 @@ class Player:
     def draw(self, surf, cam_x, cam_y):
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
-        s  = self.size
+        s  = 26           # slightly larger sprite
         t  = self.walk_tick
 
-        # Shadow
-        sh = pygame.Surface((s+4, 8), pygame.SRCALPHA)
-        pygame.draw.ellipse(sh, (0,0,0,80), (0,0,s+4,8))
-        surf.blit(sh, (sx-2, sy+s-4))
+        # Shadow ellipse beneath feet
+        sh = pygame.Surface((s + 6, 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(sh, (0, 0, 0, 90), (0, 0, s + 6, 10))
+        surf.blit(sh, (sx - 3, sy + s - 4))
 
-        # Legs (walking animation)
-        leg_off = int(3 * math.sin(t * 0.3)) if self.moving else 0
-        pygame.draw.rect(surf, (40,60,140), (sx+2,   sy+s-8, 7, 8+leg_off),  border_radius=2)
-        pygame.draw.rect(surf, (40,60,140), (sx+s-9, sy+s-8, 7, 8-leg_off),  border_radius=2)
+        # --- Legs (walking animation — chunky pixel art rectangles) ---
+        leg_off = int(4 * math.sin(t * 0.28)) if self.moving else 0
+        leg_col  = (35, 50, 130)
+        leg_col2 = (50, 70, 170)
+        # Left leg
+        pygame.draw.rect(surf, leg_col,  (sx + 2,     sy + s - 10, 8, 10 + leg_off),  border_radius=2)
+        pygame.draw.rect(surf, (0,0,0),  (sx + 2,     sy + s - 10, 8, 10 + leg_off),  1, border_radius=2)
+        # Shoe
+        pygame.draw.rect(surf, (40, 30, 20), (sx + 1, sy + s + leg_off - 1, 9, 3), border_radius=1)
+        # Right leg
+        pygame.draw.rect(surf, leg_col,  (sx + s - 10, sy + s - 10, 8, 10 - leg_off), border_radius=2)
+        pygame.draw.rect(surf, (0,0,0),  (sx + s - 10, sy + s - 10, 8, 10 - leg_off), 1, border_radius=2)
+        pygame.draw.rect(surf, (40, 30, 20), (sx + s - 11, sy + s - leg_off - 1, 9, 3), border_radius=1)
 
-        # Armour / body
+        # --- Backpack bump (right side) ---
+        pygame.draw.rect(surf, (110, 70, 30), (sx + s - 2, sy + 12, 6, 10), border_radius=2)
+        pygame.draw.rect(surf, (80,  50, 20), (sx + s - 2, sy + 12, 6, 10), 1, border_radius=2)
+        # Backpack strap accent
+        pygame.draw.rect(surf, (90, 60, 25), (sx + s + 1, sy + 13, 2, 8))
+
+        # --- Body / armour ---
         armour = self.equipment.get("armour")
-        body_col = (60,100,200) if not armour else {
-            "Leather Armour": (100,70,40),
-            "Bronze Shield":  (60,100,200),
-            "Iron Shield":    (90,90,110),
-        }.get(armour.name, (60,100,200))
-        pygame.draw.rect(surf, body_col, (sx, sy+8, s, s-8), border_radius=4)
-        # Chest highlight
-        pygame.draw.rect(surf, tuple(min(255,c+40) for c in body_col),
-                         (sx+3, sy+10, s-6, s//3-2), border_radius=3)
+        body_col = (55, 95, 195) if not armour else {
+            "Leather Armour": (95, 65, 35),
+            "Bronze Shield":  (55, 95, 195),
+            "Iron Shield":    (85, 88, 108),
+        }.get(armour.name, (55, 95, 195))
+        body_light = tuple(min(255, c + 45) for c in body_col)
+        body_dark  = tuple(max(0,   c - 40) for c in body_col)
 
-        # Head
-        pygame.draw.circle(surf, TAN,  (sx+s//2, sy+7), 8)
-        pygame.draw.circle(surf, (180,140,100), (sx+s//2, sy+7), 8, 1)
-        # Eyes
-        pygame.draw.circle(surf, BLACK, (sx+s//2-3, sy+6), 2)
-        pygame.draw.circle(surf, BLACK, (sx+s//2+3, sy+6), 2)
-        pygame.draw.circle(surf, WHITE, (sx+s//2-3, sy+5), 1)
-        pygame.draw.circle(surf, WHITE, (sx+s//2+3, sy+5), 1)
+        # Main torso rectangle
+        pygame.draw.rect(surf, body_col,   (sx,     sy + 10, s, s - 10), border_radius=3)
+        pygame.draw.rect(surf, (0, 0, 0),  (sx,     sy + 10, s, s - 10), 1, border_radius=3)
+        # Chest highlight stripe
+        pygame.draw.rect(surf, body_light, (sx + 3, sy + 12, s - 6, 5),  border_radius=2)
+        # Belt line
+        pygame.draw.rect(surf, body_dark,  (sx + 1, sy + s - 12, s - 2, 3))
 
-        # Weapon
+        # --- Arms ---
+        arm_col = body_col
+        # Left arm (hangs at side, swings when walking)
+        arm_off = int(3 * math.sin(t * 0.28)) if self.moving else 0
+        pygame.draw.rect(surf, arm_col,  (sx - 4,   sy + 12 + arm_off, 5, 10), border_radius=2)
+        pygame.draw.rect(surf, (0,0,0),  (sx - 4,   sy + 12 + arm_off, 5, 10), 1, border_radius=2)
+        # Right arm
+        pygame.draw.rect(surf, arm_col,  (sx + s - 1, sy + 12 - arm_off, 5, 10), border_radius=2)
+        pygame.draw.rect(surf, (0,0,0),  (sx + s - 1, sy + 12 - arm_off, 5, 10), 1, border_radius=2)
+
+        # --- Head ---
+        hcx = sx + s // 2
+        hcy = sy + 7
+        head_r = 9
+        # Skin
+        pygame.draw.circle(surf, TAN,           (hcx, hcy), head_r)
+        pygame.draw.circle(surf, (180, 140, 100),(hcx, hcy), head_r, 1)
+        # Hair (top arc — dark brown)
+        hair_rect = pygame.Rect(hcx - head_r, hcy - head_r, head_r * 2, head_r)
+        pygame.draw.ellipse(surf, (80, 50, 20), hair_rect)
+        pygame.draw.ellipse(surf, (0, 0, 0),    hair_rect, 1)
+        # Eyes — pixel squares
+        pygame.draw.rect(surf, BLACK, (hcx - 5, hcy - 1, 3, 3))
+        pygame.draw.rect(surf, BLACK, (hcx + 2, hcy - 1, 3, 3))
+        # White glint
+        pygame.draw.rect(surf, WHITE, (hcx - 5, hcy - 1, 1, 1))
+        pygame.draw.rect(surf, WHITE, (hcx + 2, hcy - 1, 1, 1))
+        # Mouth (tiny line)
+        pygame.draw.rect(surf, (160, 90, 70), (hcx - 3, hcy + 3, 6, 2))
+
+        # --- Weapon (drawn prominently) ---
         weapon = self.equipment.get("weapon")
         if weapon:
             wcol = {
-                "Bronze Sword": LBROWN,
-                "Iron Sword":   (160,160,170),
-                "Steel Sword":  (190,190,210),
+                "Bronze Sword": (180, 130, 60),
+                "Iron Sword":   (170, 170, 180),
+                "Steel Sword":  (200, 200, 220),
             }.get(weapon.name, YELLOW)
+            # Blade
             if self.direction == 0:   # facing right
-                pygame.draw.rect(surf, wcol, (sx+s-2, sy+10, 3, 14), border_radius=1)
-                pygame.draw.rect(surf, WHITE, (sx+s-4, sy+10, 7, 2))
+                # Blade (vertical bar to the right)
+                pygame.draw.rect(surf, wcol,         (sx + s + 3, sy + 9,  4, 18), border_radius=1)
+                pygame.draw.rect(surf, (0, 0, 0),    (sx + s + 3, sy + 9,  4, 18), 1, border_radius=1)
+                # Guard (horizontal)
+                pygame.draw.rect(surf, (220, 200, 80),(sx + s,     sy + 9,  10, 3))
+                pygame.draw.rect(surf, (0,0,0),       (sx + s,     sy + 9,  10, 3), 1)
+                # Tip
+                pygame.draw.rect(surf, WHITE,         (sx + s + 4, sy + 9,  2, 3))
             else:
-                pygame.draw.rect(surf, wcol, (sx-1, sy+10, 3, 14), border_radius=1)
-                pygame.draw.rect(surf, WHITE, (sx-3, sy+10, 7, 2))
+                pygame.draw.rect(surf, wcol,          (sx - 7, sy + 9,  4, 18), border_radius=1)
+                pygame.draw.rect(surf, (0, 0, 0),     (sx - 7, sy + 9,  4, 18), 1, border_radius=1)
+                pygame.draw.rect(surf, (220, 200, 80),(sx - 10, sy + 9, 10, 3))
+                pygame.draw.rect(surf, (0,0,0),       (sx - 10, sy + 9, 10, 3), 1)
+                pygame.draw.rect(surf, WHITE,         (sx - 7, sy + 9,  2, 3))
 
-        # HP bar (tiny, above head)
-        bw = s + 4
+        # --- HP bar (thin, above head) ---
+        bw = s + 6
         ratio = self.hp / max(1, self.max_hp)
         col_hp = NEON_GREEN if ratio > 0.5 else (YELLOW if ratio > 0.25 else CRIMSON)
-        pygame.draw.rect(surf, (40,10,10), (sx-2, sy-8, bw, 4), border_radius=2)
-        pygame.draw.rect(surf, col_hp,    (sx-2, sy-8, max(2,int(bw*ratio)), 4), border_radius=2)
+        pygame.draw.rect(surf, (40, 10, 10), (sx - 3, sy - 10, bw, 5), border_radius=2)
+        pygame.draw.rect(surf, col_hp,       (sx - 3, sy - 10, max(2, int(bw * ratio)), 5), border_radius=2)
+        pygame.draw.rect(surf, (0, 0, 0),    (sx - 3, sy - 10, bw, 5), 1, border_radius=2)
